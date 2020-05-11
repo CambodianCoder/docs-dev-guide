@@ -165,13 +165,9 @@ This section describes how to use the NFS volume service.
 
 ### <a id='create-nfs'></a> Create an NFS Volume Service
 
-Cloud Foundry offers two NFS volume services:
+<%= vars.app_runtime_abbr %> offers two NFS volume services:
 
 * `nfs`: This volume service provides support for NFS volumes using both v3 and v4.x protocols.
-  * If you do not specify a `version` parameter in the create configuration, the protocol version used is negotiated between client and server at mount time. This usually results in the latest available version being used.
-  * If you want to request a specific protocol version, include a `version` parameter in the create configuration.
-  * For read-only mounts, the driver enables attribute caching. This results in fewer attribute RPCs and better performance.
-  * When you omit `uid` and `gid` or `username` and `password` in bind configuration, the driver skips `mapfs` mounting and performs just the normal kernel mount of the NFS file system without the overhead associated with FUSE mounts.
 
 * `nfs-legacy` (deprecated): Although it is deprecated, this volume service is still available due to the difficulty of retiring services. If you use this service, it performs exactly the same mount as the `nfs` service.
 
@@ -208,7 +204,7 @@ Where:
 
 * `SERVICE-INSTANCE-NAME` is a name you provide for this NFS volume service instance.
 * `SERVER/SHARE` is the NFS address of your server and share.
-* `VERSION` is the NFS protocol you want to use. For example, if you want to use NFSv4, set the version to `4.1`. Valid values are `3.0`, `4.0`, `4.1` or `4.2`.
+* (Optional) `VERSION` is the NFS protocol you want to use. For example, if you want to use NFSv4, set the version to `4.1`. Valid values are `3.0`, `4.0`, `4.1` or `4.2`. If you do not specify a `"version"` parameter in the create configuration, the protocol version used is negotiated between client and server at mount time. This usually results in the latest available version being used.
 
 <p class="note"><strong>Note:</strong> Ensure you omit the <code>:</code> that usually follows the server name in the address.</p>
 
@@ -216,7 +212,7 @@ You can run the `cf services` command to confirm that your newly-created NFS vol
 
 #### Existing `nfs-legacy` Services:
 
-With the release of NFS Volume Service v1.5.4, the original fuse-based NFS service has been deprecated in favor of the newer kernel mount-based NFS service. Existing NFS volume service bindings will now be listed as `nfs-legacy`. To switch over from `nfs-legacy` to the newer `nfs` service, Pivotal recommends you re-create and re-bind your `nfs` service instances.
+With the release of NFS Volume Service v1.5.4, the original fuse-based NFS service has been deprecated in favor of the newer kernel mount-based NFS service. Existing NFS volume service bindings will now be listed as `nfs-legacy`. To switch over from `nfs-legacy` to the newer `nfs` service, <%= vars.recommended_by %> recommends you re-create and re-bind your `nfs` service instances.
 
 With the release of NFS Volume Service v2.0.0, the `nfs-legacy` service has been rewritten to use the `nfs` service. To avoid being affected when the `nfs-legacy` service is retired, re-create and re-bind your service instances using the `nfs` service.
 
@@ -233,21 +229,21 @@ This section describes how to deploy a sample app and bind it to the NFS volume 
 1. Bind your service instance to an app. Run:
 
     ```
-    cf bind-service YOUR-APP SERVICE-NAME -c '{"uid":"UID","gid":"GID","mount":"OPTIONAL-MOUNT-PATH","readonly":true}'
+    cf bind-service YOUR-APP SERVICE-NAME -c '{"uid":"UID","gid":"GID","mount":"OPTIONAL-MOUNT-PATH","readonly":true,"cache":false}'
     ```
 
       Where:
       * `YOUR-APP` is the name of the app for which you want to use the volume service.
       * `SERVICE-NAME` is the name of the volume service instance you created above.
-      * (Optional) `UID` and `GID` are the UID and GID to use when mounting the share to the app.
+      * (Optional) `UID` and `GID` are the UID and GID to use when mounting the remote file share to the app.
         The `GID` and `UID` must be positive integer values.
         Provide the UID and GID as a JSON string in-line or in a file.
-        If you omit `uid` and `gid`, the driver skips `mapfs` mounting and performs
+        If you omit the `uid` and `gid` parameters, the driver skips `mapfs` mounting and performs
         just the normal kernel mount of the NFS file system without the overhead associated with FUSE mounts.
         <p class="note"><strong>Note:</strong> For security reasons, nfs-volume v2.0.0 and later does not support <code>uid</code> and <code>gid</code> values of <code>0</code>.</p>
         <p class="note"><strong>Note:</strong> The user specified by <code>uid</code> must have access
            to the files on the share.
-           When <code>uid</code> and <code>gid</code> are omitted,
+           If you omit the <code>uid</code> and <code>gid</code> parameters,
            the app file operations use the UID of the running app process.
            For buildpack apps, this UID is always <code>2000</code>.
            For Docker apps, the effective UID is the same as the UID of the process
@@ -256,10 +252,9 @@ This section describes how to deploy a sample app and bind it to the NFS volume 
         </p>
         * (Optional) `OPTIONAL-MOUNT-PATH` is a JSON string that indicates the volume should be mounted to a particular path within your app rather than the default path. Choose a path with a root-level folder that already exists in the container, such as `/home`, `/usr`, or `/var`.
           <p class="note"><strong>Note:</strong> Do not specify a <code>MOUNT-PATH</code> within the <code>/app</code> directory, which is where <%= vars.app_runtime_abbr %> unpacks the droplet. For more information, see <a href="#mount-path">Mount a Shared Volume in the /app Directory</a>.</p>
-        * (Optional) `"readonly":true` is an optional JSON string that creates a read-only mount. By default, Volume Services mounts a read-write file system. For read-only mounts, the driver enables attribute caching. This results in fewer attribute RPCs and better performance.
-
-        The following example shows binding `my-app` to the `nfs_service_instance` and specifying a read-only volume to be mounted to `/var/volume1`, passing an in-line JSON string:
-        <pre class="terminal">cf bind-service my-app nfs_service_instance -c '{"uid":"1000","gid":"1000","mount":"/var/volume1","readonly":true}'</pre>
+        * (Optional) `"readonly"` is a parameter that creates a read-only mount of the remote file system when set to `true`. If you do not specify `"readonly"` in your bind configuration, the default value is `false`, creating a read-write mount.
+          <p class='note'><strong>Note:</strong> For read-only mounts, attribute caching is enabled by default. This results in fewer attribute RPCs and better performance. To disable attribute caching for read-only mounts, include <code>"cache":false</code> in your bind configuration.</p>
+        * (Optional) `"cache"` is a parameter that can enable attribute caching for read-write mounts or disable attribute caching for read-only mounts. When you run the `cf bind-service` command, the NFS volume service creates a read-write mount with attribute caching disabled by default. Setting `"cache"` to `true` for read-write mounts enables attribute caching using your operating system's default values. Setting `"cache"` to `false` for read-only mounts disables attribute caching for read-only mounts.
 
 1. Start the app:
 
@@ -285,11 +280,12 @@ This section provides additional information about using the NFS Volume Service.
 
 #### <a id='ldap'></a> Configure LDAP Credentials with Service Instance Creation
 
-If your Cloud Foundry deployment has LDAP enabled, you can configure LDAP credentials for your NFS Volume Service instance.
+If your <%= vars.platform_name %> deployment has LDAP enabled, you can configure LDAP credentials for your NFS Volume Service instance.
 
 To configure LDAP credentials while creating your NFS Volume Service instance:
 
 1. Specify values for `username` and `password` in the JSON string for your `cf create-service` command:
+
     ```
     $ cf create-service nfs PLAN SERVICE-INSTANCE-NAME -c '{"share":"SERVER/SHARE", "username":"USERNAME", "password":"PASSWORD"}'
     ```
@@ -299,6 +295,7 @@ To configure LDAP credentials while creating your NFS Volume Service instance:
     * `SERVER/SHARE` is the NFS address of your server and share.
     * `USERNAME` is a username you provide for this NFS Volume Service instance.
     * `PASSWORD` is a password you provide for this NFS Volume Service instance.
+      <p class='note'><strong>Note:</strong> If you omit <code>username</code> and <code>password</code> in the bind configuration, the driver skips <code>mapfs</code> mounting and performs just the normal kernel mount of the NFS file system without the overhead associated with FUSE mounts.</p>
 
 #### <a id='bind-parameters'></a> Specify Bind Parameters During Service Instance Creation
 
